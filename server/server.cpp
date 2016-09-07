@@ -1,11 +1,19 @@
 /* File Name: server.cpp */
 #include "server.h"
+
+#ifdef HDFS_FLAG
 #include "hdfs.h"
+#endif
 
-#define		SERVER_CONF			"server_03.conf"
+#define		SERVER_CONF			"server.conf"
 
-char *hdfs_path = NULL, *hdfs_addr = NULL, *log_path = NULL, *save_path = NULL, *prefix = NULL;
-pthread_mutex_t g_mutex_setflag, g_mutex_qwrite_hdfs;
+#ifdef HDFS_FLAG
+char *hdfs_path = NULL, *hdfs_addr = NULL;
+pthread_mutex_t g_mutex_qwrite_hdfs;
+#endif
+ 
+char *log_path = NULL, *save_path = NULL;
+pthread_mutex_t g_mutex_setflag;
 pthread_t *id = NULL;
 FILE *log_fd = NULL;
 int hdfs_port = 0;
@@ -30,13 +38,10 @@ int get_hdfs_path(int now_min)
 int write_HDFS(string filename)
 {
 	char writepath[MIDLENGTH] = { 0 }, buffer[MAXLENGTH] = { 0 }, temp1[20] = { 0 };
-	int curSize = 0, adx = 0, myear = 0, mmon = 0, mday = 0, mhour = 0, mmin = 0, msec = 0;
 	hdfsFile writeFile;
-	NOW_TIME nowtime;
 	FILE *fp = NULL;
 
-	sscanf(basename((char *)filename.c_str()), "%[^_]_%02d_%04d%02d%02d%02d%02d%05d.log.gz", temp1, &adx, &myear, &mmon, &mday, &mhour, &mmin, &msec);
-	sprintf(writepath, "%s/%02d-%02d-%02d/%02d%02d/%s", hdfs_path, myear - 2000, mmon, mday, mhour, get_hdfs_path(mmin), basename((char *)filename.c_str()));
+	sprintf(writepath, "%s/%s", hdfs_path, basename((char *)filename.c_str()));
 	writeFile = hdfsOpenFile(fs, writepath, O_WRONLY | O_CREAT, MAXLENGTH, 0, 0);
 	if (!writeFile)
 	{
@@ -87,7 +92,7 @@ void *accept_files(void *args)
 
 		gettime(&now, false);
 		sprintf(tmpserver, "%s/server_%d%02d%02d.ini", log_path, now.year, now.mon, now.day);
-		sprintf(filesave_path, "%s/%s_%d%02d%02d/", save_path, prefix, now.year, now.mon, now.day);
+		sprintf(filesave_path, "%s/%d%02d%02d/", save_path, now.year, now.mon, now.day);
 		sprintf(mk_save_path, "mkdir -p %s", filesave_path);
 		exist_file(tmpserver);
 		system(mk_save_path);
@@ -163,10 +168,12 @@ void *accept_files(void *args)
 		pthread_mutex_lock(&g_mutex_setflag);
 		SetPrivateProfileInt(tmpserver, (char *)"default", filename, pos);
 		pthread_mutex_unlock(&g_mutex_setflag);
-
+		
+#ifdef HDFS_FLAG
 		pthread_mutex_lock(&g_mutex_qwrite_hdfs);
 		qwrite_hdfs.push(string(filesave_path));
 		pthread_mutex_unlock(&g_mutex_qwrite_hdfs);
+#endif
 
 	exit:
 		if (fp != NULL)
@@ -208,19 +215,14 @@ int main(int argc, char** argv)
 	string server_config = "";
 	pthread_t queue_id;
 
-	server_config = string(CONFIG_PATH) + string(SERVER_CONF);
+	server_config = string(SERVER_CONF);
 	cpu_count = GetPrivateProfileInt((char *)server_config.c_str(), (char *)"default", (char *)"cpu_count");
 	save_path = GetPrivateProfileString((char *)server_config.c_str(), (char *)"default", (char *)"save_path");
-	prefix = GetPrivateProfileString((char *)server_config.c_str(), (char *)"default", (char *)"prefix");
 	log_path = GetPrivateProfileString((char *)server_config.c_str(), (char *)"log", (char *)"log_path");
-	hdfs_path = GetPrivateProfileString((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_path");
-	hdfs_addr = GetPrivateProfileString((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_addr");
-	hdfs_port = GetPrivateProfileInt((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_port");
-	if ((cpu_count < 0) || (log_path == NULL) || (hdfs_path == NULL)
-		|| (hdfs_path == NULL) || (hdfs_port == 0) || (save_path == NULL) || (prefix == NULL))
+	if ((cpu_count < 0) || (log_path == NULL) || (hdfs_path == NULL))
 	{
-		write_cmd("error:bad configure file,cpu_count:%d,save_path:%s,prefix:%s,log_path:%s,hdfs_path:%s,hdfs_addr:%s,hdfs_port:%d,at %d,in %s\n", 
-			cpu_count, save_path, prefix, log_path, hdfs_path, hdfs_addr, hdfs_port, __LINE__, __FUNCTION__);
+		write_cmd("error:bad configure file,cpu_count:%d,save_path:%s,log_path:%s,at %d,in %s\n", 
+			cpu_count, save_path, log_path, __LINE__, __FUNCTION__);
 		goto exit;
 	}
 
@@ -228,6 +230,17 @@ int main(int argc, char** argv)
 	if (log_fd == NULL)
 		goto exit;
 
+	#ifdef HDFS_FLAG
+	hdfs_path = GetPrivateProfileString((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_path");
+	hdfs_addr = GetPrivateProfileString((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_addr");
+	hdfs_port = GetPrivateProfileInt((char *)server_config.c_str(), (char *)"hdfs", (char *)"hdfs_port");
+	if ((hdfs_path == NULL) || (hdfs_port == 0) || (save_path == NULL))
+	{
+		write_cmd("error:bad configure file,hdfs_path:%s,hdfs_addr:%s,hdfs_port:%d,at %d,in %s\n", 
+			hdfs_path, hdfs_addr, hdfs_port, __LINE__, __FUNCTION__);
+		goto exit;
+	}
+	
 	fs = hdfsConnect(hdfs_addr, hdfs_port);
 	if (!fs)
 	{
@@ -235,9 +248,11 @@ int main(int argc, char** argv)
 			hdfs_addr, hdfs_port, __LINE__, __FUNCTION__);
 		goto exit;
 	}
+	
+	pthread_mutex_init(&g_mutex_qwrite_hdfs, 0);
+	#endif
 
 	pthread_mutex_init(&g_mutex_setflag, 0);
-	pthread_mutex_init(&g_mutex_qwrite_hdfs, 0);
 	id = (pthread_t *)calloc(20, sizeof(pthread_t));
 	if (id == NULL)
 	{
@@ -305,9 +320,6 @@ exit:
 
 	if (save_path != NULL)
 		save_path = NULL;
-
-	if (prefix != NULL)
-		prefix = NULL;
 
 	if (fs != NULL)
 		hdfsDisconnect(fs);

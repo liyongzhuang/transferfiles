@@ -42,8 +42,8 @@ void *gzip_files(void *args)
 		NOW_TIME now;
 
 		gettime(&now, false);
-		sprintf(source_dir, "%s/%s_%d%02d%02d/", source_path, prefix, now.year, now.mon, now.day);
-		sprintf(send_dir, "%s/%s_%d%02d%02d/", send_path.c_str(), gzprefix, now.year, now.mon, now.day);
+		sprintf(source_dir, "%s/", source_path);
+		sprintf(send_dir, "%s/gz_%d%02d%02d/", send_path.c_str(), now.year, now.mon, now.day);
 		sprintf(tmp_filename, "%s/gzclient_%d%02d%02d.ini", log_path, now.year, now.mon, now.day);
 		create_dir(send_dir);
 		exist_file(tmp_filename);
@@ -246,11 +246,9 @@ int main(int argc, char** argv)
 	pthread_t gzip_id;
 	string client_config = "";
 	
-	client_config = string(CONFIG_PATH) + string(CLIENT_CONF);
+	client_config = string(CLIENT_CONF);
 	log_path = GetPrivateProfileString((char *)client_config.c_str(), (char *)"log", (char *)"log_path");
 	source_path = GetPrivateProfileString((char *)client_config.c_str(), (char *)"default", (char *)"source_path");//not me created.
-	prefix = GetPrivateProfileString((char *)client_config.c_str(), (char *)"default", (char *)"prefix");
-	gzprefix = GetPrivateProfileString((char *)client_config.c_str(), (char *)"default", (char *)"gzprefix");
 	server_addr = GetPrivateProfileString((char *)client_config.c_str(), (char *)"server", (char *)"server_addr");
 	server_port = GetPrivateProfileInt((char *)client_config.c_str(), (char *)"server", (char *)"server_port");
 	if ((log_path == NULL) || (source_path == NULL) || (server_addr == NULL) || (server_port == 0))
@@ -289,7 +287,7 @@ int main(int argc, char** argv)
 		int i = 0, vsize = 0;
 		
 		gettime(&now, false);
-		sprintf(send_dir, "%s/%s_%d%02d%02d", send_path.c_str(), gzprefix, now.year, now.mon, now.day);
+		sprintf(send_dir, "%s/gz_%d%02d%02d", send_path.c_str(), now.year, now.mon, now.day);
 		sprintf(tmp_dir, "%s/client_%d%02d%02d.ini", log_path, now.year, now.mon, now.day);
 		exist_file(tmp_dir);
 
