@@ -1,8 +1,10 @@
 # Transfer files
 
-#1. This program will help you to transfer files from some client to one server. Then server will write the files to HDFS of hadoop(if you didn't want,you can use the feature)
+#1. Function 
+This program will help you to transfer files from some client to one server. Then server will write the files to HDFS of hadoop(if you didn't want,you can use the feature)
 
-#2. The protocol is TCP, without doubt the program support breakpoint resume when some client was abort, and then support MD5 checking. The files will be compress to .gz format by reason of relying on network.
+#2. Protocol 
+The protocol is TCP, without doubt the program support breakpoint resume when some client was abort, and then support MD5 checking. The files will be compress to .gz format by reason of relying on network.
 
 #3. Environment
 	First,running environment is Centos6.5. 
